@@ -3,20 +3,54 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 	INodeExecutionData,
-	IHttpRequestOptions,
+	INodeProperties,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
 
+import { UpstageEmbeddings } from './UpstageEmbeddings';
+
+const modelParameter: INodeProperties = {
+	displayName: 'Model',
+	name: 'model',
+	type: 'options',
+	description:
+		'The model which will generate the embeddings. <a href="https://console.upstage.ai/docs/capabilities/embeddings">Learn more</a>.',
+	options: [
+		{
+			name: 'Embedding Query (Alias)',
+			value: 'embedding-query',
+			description: 'Optimized for search queries - points to latest query model',
+		},
+		{
+			name: 'Embedding Passage (Alias)',
+			value: 'embedding-passage',
+			description: 'Optimized for document passages - points to latest passage model',
+		},
+		{
+			name: 'Solar Embedding 1 Large Query',
+			value: 'solar-embedding-1-large-query',
+			description: 'Specific version for query embeddings',
+		},
+		{
+			name: 'Solar Embedding 1 Large Passage',
+			value: 'solar-embedding-1-large-passage',
+			description: 'Specific version for passage embeddings',
+		},
+	],
+	default: 'embedding-query',
+	hint: 'Use aliases (embedding-query/embedding-passage) to automatically benefit from future model updates',
+};
+
 export class EmbeddingsUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Upstage Embeddings',
+		displayName: 'Embeddings Upstage',
 		name: 'embeddingsUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['transform', '@n8n/n8n-nodes-langchain'],
+		group: ['transform'],
 		version: 1,
-			description: 'Generate embeddings using Upstage Solar embedding models. Supports up to 100 strings per request with max 204,800 total tokens. Each text should be under 4000 tokens (optimal: under 512 tokens).',
+		description: 'Use Upstage Solar Embeddings for text vectorization with enhanced input validation and error handling',
 		defaults: {
-			name: 'Upstage Embeddings',
+			name: 'Embeddings Upstage',
 		},
 		inputs: [NodeConnectionType.Main],
 		outputs: [NodeConnectionType.Main],
@@ -27,25 +61,7 @@ export class EmbeddingsUpstage implements INodeType {
 			},
 		],
 		properties: [
-			{
-				displayName: 'Model',
-				name: 'model',
-				type: 'options',
-				options: [
-					{
-						name: 'embedding-query',
-						value: 'embedding-query',
-						description: 'Optimized for search queries and questions',
-					},
-					{
-						name: 'embedding-passage',
-						value: 'embedding-passage',
-						description: 'Optimized for documents and passages',
-					},
-				],
-				default: 'embedding-query',
-				description: 'The Solar embedding model to use',
-			},
+			modelParameter,
 			{
 				displayName: 'Input Type',
 				name: 'inputType',
@@ -60,6 +76,11 @@ export class EmbeddingsUpstage implements INodeType {
 						name: 'Array of Texts',
 						value: 'array',
 						description: 'Process multiple texts at once',
+					},
+					{
+						name: 'LangChain Compatible',
+						value: 'langchain',
+						description: 'Use LangChain-compatible embeddings interface',
 					},
 				],
 				default: 'single',
@@ -107,6 +128,39 @@ export class EmbeddingsUpstage implements INodeType {
 				placeholder: 'Optional: field name containing text',
 				description: 'Field name from input data containing the text to embed (if empty, uses the "text" parameter above)',
 			},
+			{
+				displayName: 'Options',
+				name: 'options',
+				placeholder: 'Add Option',
+				description: 'Additional options to add',
+				type: 'collection',
+				default: {},
+				options: [
+					{
+						displayName: 'Batch Size',
+						name: 'batchSize',
+						default: 100,
+						typeOptions: { maxValue: 100 },
+						description:
+							'Maximum number of documents to send in each request. Upstage supports up to 100 texts per batch.',
+						type: 'number',
+					},
+					{
+						displayName: 'Strip New Lines',
+						name: 'stripNewLines',
+						default: true,
+						description: 'Whether to strip new lines from the input text',
+						type: 'boolean',
+					},
+					{
+						displayName: 'Show Usage',
+						name: 'showUsage',
+						default: false,
+						description: 'Whether to include token usage information in the response',
+						type: 'boolean',
+					},
+				],
+			},
 		],
 	};
 
@@ -116,9 +170,38 @@ export class EmbeddingsUpstage implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
+				const credentials = await this.getCredentials('upstageApi');
 				const model = this.getNodeParameter('model', i) as string;
 				const inputType = this.getNodeParameter('inputType', i) as string;
 				const textField = this.getNodeParameter('textField', i, '') as string;
+				const options = this.getNodeParameter('options', i, {}) as {
+					batchSize?: number;
+					stripNewLines?: boolean;
+					showUsage?: boolean;
+				};
+
+				// Handle LangChain compatible mode
+				if (inputType === 'langchain') {
+					// Create UpstageEmbeddings instance for LangChain compatibility
+					const embeddings = new UpstageEmbeddings({
+						apiKey: credentials.apiKey as string,
+						model,
+						baseURL: 'https://api.upstage.ai/v1',
+						batchSize: options.batchSize,
+						stripNewLines: options.stripNewLines,
+					});
+
+					returnData.push({
+						json: {
+							embeddingsInstance: embeddings,
+							message: 'LangChain-compatible UpstageEmbeddings instance created',
+							model,
+							options,
+						},
+						pairedItem: { item: i },
+					});
+					continue;
+				}
 
 				let input: string | string[];
 
@@ -140,64 +223,59 @@ export class EmbeddingsUpstage implements INodeType {
 					throw new Error('No input text provided');
 				}
 
-				// Build request body
-				const requestBody = {
+				// Use enhanced UpstageEmbeddings for processing
+				const embeddings = new UpstageEmbeddings({
+					apiKey: credentials.apiKey as string,
 					model,
-					input,
-				};
+					baseURL: 'https://api.upstage.ai/v1',
+					batchSize: options.batchSize,
+					stripNewLines: options.stripNewLines,
+				});
 
-				// Make API request
-				const requestOptions: IHttpRequestOptions = {
-					method: 'POST',
-					url: 'https://api.upstage.ai/v1/embeddings',
-					body: requestBody,
-					json: true,
-				};
+				let result: number[] | number[][];
+				let usage: any = {};
 
-				const response = await this.helpers.httpRequestWithAuthentication.call(
-					this,
-					'upstageApi',
-					requestOptions,
-				);
-
-				// Process response
 				if (Array.isArray(input)) {
 					// Multiple embeddings
-					const embeddings = response.data.map((item: any) => ({
-						text: input[item.index],
-						embedding: item.embedding,
-						index: item.index,
+					result = await embeddings.embedDocuments(input);
+					const embeddingsData = result.map((embedding, index) => ({
+						text: input[index],
+						embedding,
+						index,
+						dimension: embedding.length,
 					}));
 
 					returnData.push({
 						json: {
-							embeddings,
-							model: response.model,
-							usage: response.usage,
-							full_response: response,
+							embeddings: embeddingsData,
+							model,
+							usage: options.showUsage ? usage : undefined,
+							count: embeddingsData.length,
 						},
 						pairedItem: { item: i },
 					});
 				} else {
 					// Single embedding
-					const embedding = response.data[0]?.embedding || [];
-
+					result = await embeddings.embedQuery(input);
 					returnData.push({
 						json: {
 							text: input,
-							embedding,
-							model: response.model,
-							usage: response.usage,
-							dimension: embedding.length,
-							full_response: response,
+							embedding: result,
+							model,
+							usage: options.showUsage ? usage : undefined,
+							dimension: result.length,
 						},
 						pairedItem: { item: i },
 					});
 				}
 			} catch (error) {
+				console.error('EmbeddingsUpstage execution error:', error);
 				if (this.continueOnFail()) {
 					returnData.push({
-						json: { error: (error as Error).message || 'Unknown error' },
+						json: { 
+							error: (error as Error).message || 'Unknown error',
+							errorDetails: error instanceof Error ? error.stack : String(error),
+						},
 						pairedItem: { item: i },
 					});
 				} else {
