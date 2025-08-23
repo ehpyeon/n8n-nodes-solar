@@ -1,0 +1,61 @@
+{
+  "name": "n8n-nodes-solar",
+  "version": "0.1.0",
+  "description": "Solar LLM and Embeddings nodes for n8n",
+  "license": "MIT",
+  "homepage": "https://github.com/yourusername/n8n-nodes-solar",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/n8n-nodes-solar.git"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "cp src/upstage.svg dist/ || true",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "n8n",
+    "n8n-node",
+    "n8n-community-node-package",
+    "solar",
+    "upstage",
+    "llm",
+    "ai",
+    "embeddings",
+    "machine-learning"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/UpstageApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/LmChatUpstage.node.js",
+      "dist/nodes/EmbeddingsUpstage.node.js"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0",
+    "n8n-core": ">=1.0.0"
+  },
+  "author": {
+    "name": "Euihyeon Pyeon",
+    "email": "euihyeon.pyeon@gmail.com"
+  }
+}
