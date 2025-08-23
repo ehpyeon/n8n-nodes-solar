@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-solar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Solar LLM and Embeddings nodes for n8n",
   "license": "MIT",
   "homepage": "https://github.com/ehpyeon/n8n-nodes-solar",
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "cp src/upstage.svg dist/ || true",
+    "copy-assets": "cp src/upstage.svg src/upstage_v2.svg dist/ || true",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",

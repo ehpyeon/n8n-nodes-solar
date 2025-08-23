@@ -11,7 +11,7 @@ export class EmbeddingsUpstage implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Upstage Embeddings',
 		name: 'embeddingsUpstage',
-		icon: 'file:upstage.svg',
+		icon: 'file:upstage_v2.svg',
 		group: ['transform', '@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Generate embeddings using Upstage Solar embedding models',

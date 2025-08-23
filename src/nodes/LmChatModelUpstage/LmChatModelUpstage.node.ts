@@ -11,7 +11,7 @@ export class LmChatModelUpstage implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Upstage Solar Chat Model',
 		name: 'lmChatModelUpstage',
-		icon: 'file:upstage.svg',
+		icon: 'file:upstage_v2.svg',
 		group: ['@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Language Model for AI Agent - Upstage Solar LLM',

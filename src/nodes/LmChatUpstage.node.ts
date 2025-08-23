@@ -11,7 +11,7 @@ export class LmChatUpstage implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Upstage Solar LLM',
 		name: 'lmChatUpstage',
-		icon: 'file:upstage.svg',
+		icon: 'file:upstage_v2.svg',
 		group: ['transform', '@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Use Upstage Solar models for chat completions',
