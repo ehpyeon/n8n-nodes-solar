@@ -1,25 +1,28 @@
 import type {
-	IExecuteFunctions,
 	INodeType,
 	INodeTypeDescription,
-	INodeExecutionData,
-	IHttpRequestOptions,
+	ISupplyDataFunctions,
+	SupplyData,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
+import { ChatOpenAI } from '@langchain/openai';
 
 export class LmChatUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Upstage Solar LLM',
+		displayName: 'Solar Chat Model',
 		name: 'lmChatUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['transform', '@n8n/n8n-nodes-langchain'],
+		group: ['transform'],
 		version: 1,
-		description: 'Use Upstage Solar models for chat completions',
+		description: 'For advanced usage with an AI chain',
 		defaults: {
-			name: 'Upstage Solar LLM',
+			name: 'Solar Chat Model',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+		inputs: [],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
+		outputs: [NodeConnectionType.AiLanguageModel],
+		outputNames: ['Model'],
 		credentials: [
 			{
 				name: 'upstageApi',
@@ -232,105 +235,44 @@ export class LmChatUpstage implements INodeType {
 		],
 	};
 
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const items = this.getInputData();
-		const returnData: INodeExecutionData[] = [];
+	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+		const model = this.getNodeParameter('model', itemIndex) as string;
+		const messagesCollection = this.getNodeParameter('messages.message', itemIndex, []) as Array<{
+			role: string;
+			content: string;
+		}>;
+		const options = this.getNodeParameter('options', itemIndex, {}) as {
+			temperature?: number;
+			max_tokens?: number;
+			top_p?: number;
+			stream?: boolean;
+			reasoning_effort?: string;
+			frequency_penalty?: number;
+			presence_penalty?: number;
+			response_format?: string;
+			json_schema?: string;
+		};
 
-		for (let i = 0; i < items.length; i++) {
-			try {
-				const model = this.getNodeParameter('model', i) as string;
-				const messages = this.getNodeParameter('messages.message', i, []) as Array<{
-					role: string;
-					content: string;
-				}>;
-				const options = this.getNodeParameter('options', i, {}) as {
-					temperature?: number;
-					max_tokens?: number;
-					top_p?: number;
-					stream?: boolean;
-					reasoning_effort?: string;
-					frequency_penalty?: number;
-					presence_penalty?: number;
-					response_format?: string;
-					json_schema?: string;
-				};
+		// Get Upstage API credentials
+		const credentials = await this.getCredentials('upstageApi');
+		const apiKey = credentials.apiKey as string;
 
-				// Build request body
-				const requestBody: any = {
-					model,
-					messages,
-					...options,
-				};
+		// Initialize ChatOpenAI with Upstage configuration
+		const chatModel = new ChatOpenAI({
+			modelName: model,
+			openAIApiKey: apiKey,
+			configuration: {
+				baseURL: 'https://api.upstage.ai/v1/solar',
+			},
+			temperature: options.temperature,
+			maxTokens: options.max_tokens,
+			topP: options.top_p,
+			frequencyPenalty: options.frequency_penalty,
+			presencePenalty: options.presence_penalty,
+		});
 
-				// Handle response_format properly
-				if (options.response_format && options.response_format !== 'text') {
-					if (options.response_format === 'json_object') {
-						requestBody.response_format = { type: 'json_object' };
-					} else if (options.response_format === 'json_schema' && options.json_schema) {
-						try {
-							const schema = JSON.parse(options.json_schema);
-							requestBody.response_format = {
-								type: 'json_schema',
-								json_schema: schema,
-							};
-						} catch (error) {
-							throw new Error('Invalid JSON schema provided');
-						}
-					}
-					// Remove the raw response_format and json_schema from body
-					delete requestBody.json_schema;
-				}
-
-				// Make API request
-				const requestOptions: IHttpRequestOptions = {
-					method: 'POST',
-					url: 'https://api.upstage.ai/v1/solar/chat/completions',
-					body: requestBody,
-					json: true,
-				};
-
-				const response = await this.helpers.httpRequestWithAuthentication.call(
-					this,
-					'upstageApi',
-					requestOptions,
-				);
-
-				// Handle streaming vs non-streaming response
-				if (options.stream) {
-					// For streaming, we'd need to handle the stream properly
-					// For now, return the full response
-					returnData.push({
-						json: response,
-						pairedItem: { item: i },
-					});
-				} else {
-					// Extract the assistant's message
-					const choice = response.choices?.[0];
-					const content = choice?.message?.content || '';
-					
-					returnData.push({
-						json: {
-							content,
-							usage: response.usage,
-							model: response.model,
-							created: response.created,
-							full_response: response,
-						},
-						pairedItem: { item: i },
-					});
-				}
-			} catch (error) {
-				if (this.continueOnFail()) {
-					returnData.push({
-						json: { error: (error as Error).message || 'Unknown error' },
-						pairedItem: { item: i },
-					});
-				} else {
-					throw error;
-				}
-			}
-		}
-
-		return [returnData];
+		return {
+			response: chatModel,
+		};
 	}
 }

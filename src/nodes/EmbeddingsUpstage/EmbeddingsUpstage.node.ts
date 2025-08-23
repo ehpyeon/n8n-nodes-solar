@@ -1,8 +1,8 @@
 import type {
-	IExecuteFunctions,
+	ISupplyDataFunctions,
 	INodeType,
 	INodeTypeDescription,
-	INodeExecutionData,
+	SupplyData,
 	INodeProperties,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
@@ -43,17 +43,20 @@ const modelParameter: INodeProperties = {
 
 export class EmbeddingsUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Embeddings Upstage',
+		displayName: 'Solar Embeddings Model',
 		name: 'embeddingsUpstage',
 		icon: 'file:upstage_v2.svg',
 		group: ['transform'],
 		version: 1,
-		description: 'Use Upstage Solar Embeddings for text vectorization with enhanced input validation and error handling',
+		description: 'For advanced usage with an AI chain',
 		defaults: {
-			name: 'Embeddings Upstage',
+			name: 'Solar Embeddings Model',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+		inputs: [],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
+		outputs: [NodeConnectionType.AiEmbedding],
+		outputNames: ['Model'],
 		credentials: [
 			{
 				name: 'upstageApi',
@@ -164,126 +167,26 @@ export class EmbeddingsUpstage implements INodeType {
 		],
 	};
 
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const items = this.getInputData();
-		const returnData: INodeExecutionData[] = [];
+	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+		const credentials = await this.getCredentials('upstageApi');
+		const model = this.getNodeParameter('model', itemIndex) as string;
+		const options = this.getNodeParameter('options', itemIndex, {}) as {
+			batchSize?: number;
+			stripNewLines?: boolean;
+			showUsage?: boolean;
+		};
 
-		for (let i = 0; i < items.length; i++) {
-			try {
-				const credentials = await this.getCredentials('upstageApi');
-				const model = this.getNodeParameter('model', i) as string;
-				const inputType = this.getNodeParameter('inputType', i) as string;
-				const textField = this.getNodeParameter('textField', i, '') as string;
-				const options = this.getNodeParameter('options', i, {}) as {
-					batchSize?: number;
-					stripNewLines?: boolean;
-					showUsage?: boolean;
-				};
+		// Create UpstageEmbeddings instance
+		const embeddings = new UpstageEmbeddings({
+			apiKey: credentials.apiKey as string,
+			model,
+			baseURL: 'https://api.upstage.ai/v1',
+			batchSize: options.batchSize,
+			stripNewLines: options.stripNewLines,
+		});
 
-				// Handle LangChain compatible mode
-				if (inputType === 'langchain') {
-					// Create UpstageEmbeddings instance for LangChain compatibility
-					const embeddings = new UpstageEmbeddings({
-						apiKey: credentials.apiKey as string,
-						model,
-						baseURL: 'https://api.upstage.ai/v1',
-						batchSize: options.batchSize,
-						stripNewLines: options.stripNewLines,
-					});
-
-					returnData.push({
-						json: {
-							embeddingsInstance: embeddings,
-							message: 'LangChain-compatible UpstageEmbeddings instance created',
-							model,
-							options,
-						},
-						pairedItem: { item: i },
-					});
-					continue;
-				}
-
-				let input: string | string[];
-
-				if (inputType === 'single') {
-					if (textField && items[i].json[textField]) {
-						// Get text from input data field
-						input = items[i].json[textField] as string;
-					} else {
-						// Get text from parameter
-						input = this.getNodeParameter('text', i) as string;
-					}
-				} else {
-					// Array input
-					const textsParam = this.getNodeParameter('texts', i) as string;
-					input = textsParam.split('\n').filter(text => text.trim().length > 0);
-				}
-
-				if (!input || (Array.isArray(input) && input.length === 0)) {
-					throw new Error('No input text provided');
-				}
-
-				// Use enhanced UpstageEmbeddings for processing
-				const embeddings = new UpstageEmbeddings({
-					apiKey: credentials.apiKey as string,
-					model,
-					baseURL: 'https://api.upstage.ai/v1',
-					batchSize: options.batchSize,
-					stripNewLines: options.stripNewLines,
-				});
-
-				let result: number[] | number[][];
-				let usage: any = {};
-
-				if (Array.isArray(input)) {
-					// Multiple embeddings
-					result = await embeddings.embedDocuments(input);
-					const embeddingsData = result.map((embedding, index) => ({
-						text: input[index],
-						embedding,
-						index,
-						dimension: embedding.length,
-					}));
-
-					returnData.push({
-						json: {
-							embeddings: embeddingsData,
-							model,
-							usage: options.showUsage ? usage : undefined,
-							count: embeddingsData.length,
-						},
-						pairedItem: { item: i },
-					});
-				} else {
-					// Single embedding
-					result = await embeddings.embedQuery(input);
-					returnData.push({
-						json: {
-							text: input,
-							embedding: result,
-							model,
-							usage: options.showUsage ? usage : undefined,
-							dimension: result.length,
-						},
-						pairedItem: { item: i },
-					});
-				}
-			} catch (error) {
-				console.error('EmbeddingsUpstage execution error:', error);
-				if (this.continueOnFail()) {
-					returnData.push({
-						json: { 
-							error: (error as Error).message || 'Unknown error',
-							errorDetails: error instanceof Error ? error.stack : String(error),
-						},
-						pairedItem: { item: i },
-					});
-				} else {
-					throw error;
-				}
-			}
-		}
-
-		return [returnData];
+		return {
+			response: embeddings,
+		};
 	}
 }
