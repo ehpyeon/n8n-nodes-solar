@@ -9,14 +9,14 @@ import { NodeConnectionType } from 'n8n-workflow';
 
 export class EmbeddingsUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Embeddings Upstage',
+		displayName: 'Upstage Embeddings',
 		name: 'embeddingsUpstage',
 		icon: 'file:upstage.svg',
-		group: ['transform'],
+		group: ['transform', '@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Generate embeddings using Upstage Solar embedding models',
 		defaults: {
-			name: 'Embeddings Upstage',
+			name: 'Upstage Embeddings',
 		},
 		inputs: [NodeConnectionType.Main],
 		outputs: [NodeConnectionType.Main],

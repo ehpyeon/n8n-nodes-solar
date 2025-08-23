@@ -9,14 +9,14 @@ import { NodeConnectionType } from 'n8n-workflow';
 
 export class LmChatUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Solar Chat Model',
+		displayName: 'Upstage Solar LLM',
 		name: 'lmChatUpstage',
 		icon: 'file:upstage.svg',
-		group: ['transform'],
+		group: ['transform', '@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Use Upstage Solar models for chat completions',
 		defaults: {
-			name: 'Solar Chat Model',
+			name: 'Upstage Solar LLM',
 		},
 		inputs: [NodeConnectionType.Main],
 		outputs: [NodeConnectionType.Main],
