@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-solar",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Solar LLM and Embeddings nodes for n8n",
   "license": "MIT",
   "homepage": "https://github.com/ehpyeon/n8n-nodes-solar",
@@ -39,7 +39,9 @@
     ],
     "nodes": [
       "dist/nodes/LmChatUpstage.node.js",
-      "dist/nodes/EmbeddingsUpstage.node.js"
+      "dist/nodes/EmbeddingsUpstage.node.js",
+      "dist/nodes/LmChatModelUpstage/LmChatModelUpstage.node.js",
+      "dist/nodes/EmbeddingsUpstageModel/EmbeddingsUpstageModel.node.js"
     ]
   },
   "engines": {
@@ -52,7 +54,9 @@
   },
   "peerDependencies": {
     "n8n-workflow": ">=1.0.0",
-    "n8n-core": ">=1.0.0"
+    "n8n-core": ">=1.0.0",
+    "@langchain/core": ">=0.1.0",
+    "@langchain/openai": ">=0.0.1"
   },
   "author": {
     "name": "Euihyeon Pyeon",
