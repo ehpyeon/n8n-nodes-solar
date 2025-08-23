@@ -5,7 +5,6 @@ import type {
 	SupplyData,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
-import type { Embeddings } from '@langchain/core/embeddings';
 
 export class EmbeddingsUpstageModel implements INodeType {
 	description: INodeTypeDescription = {
@@ -82,19 +81,57 @@ export class EmbeddingsUpstageModel implements INodeType {
 }
 
 // Custom LangChain Embeddings implementation for Upstage Solar
-import { OpenAIEmbeddings } from '@langchain/openai';
+import { Embeddings } from '@langchain/core/embeddings';
 
-class UpstageEmbeddings extends OpenAIEmbeddings {
+class UpstageEmbeddings extends Embeddings {
+	private apiKey: string;
+	private model: string;
+	private baseURL: string = 'https://api.upstage.ai/v1';
+
 	constructor(fields: {
 		apiKey: string;
 		model: string;
 	}) {
-		super({
-			openAIApiKey: fields.apiKey,
-			modelName: fields.model,
-			configuration: {
-				baseURL: 'https://api.upstage.ai/v1',
-			},
-		});
+		super({});
+		this.apiKey = fields.apiKey;
+		this.model = fields.model;
+	}
+
+	async embedDocuments(texts: string[]): Promise<number[][]> {
+		return this.callUpstageAPI(texts);
+	}
+
+	async embedQuery(text: string): Promise<number[]> {
+		const result = await this.callUpstageAPI([text]);
+		return result[0];
+	}
+
+	private async callUpstageAPI(input: string[]): Promise<number[][]> {
+		try {
+			const response = await fetch(`${this.baseURL}/embeddings`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.apiKey}`,
+				},
+				body: JSON.stringify({
+					model: this.model,
+					input: input,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorBody = await response.text();
+				throw new Error(`Upstage API error: ${response.status} - ${errorBody}`);
+			}
+
+			const data: any = await response.json();
+			
+			// Sort by index to ensure correct order
+			const sortedData = data.data.sort((a: any, b: any) => a.index - b.index);
+			return sortedData.map((item: any) => item.embedding);
+		} catch (error) {
+			throw new Error(`Failed to generate embeddings: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 }
