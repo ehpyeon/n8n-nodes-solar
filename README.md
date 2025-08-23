@@ -9,6 +9,8 @@ Solar LLM and Embeddings nodes for n8n, powered by Upstage Solar models.
 
 This package provides n8n community nodes for integrating with Upstage's Solar LLM and embedding models. Solar is a series of large language models that deliver exceptional performance with efficiency.
 
+✨ **Fully compatible with n8n AI Agent workflows** - Visual call tracking and event logging work seamlessly with the n8n AI framework.
+
 ## Features
 
 - **Solar Chat Model**: Use Solar LLM for chat completions with support for multiple models (solar-mini, solar-pro, solar-pro2)
@@ -152,4 +154,4 @@ MIT License - see LICENSE file for details.
 - [Upstage Console](https://console.upstage.ai/)
 - [Solar LLM Documentation](https://developers.upstage.ai/docs/apis/chat)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
-- [GitHub Repository](https://github.com/yourusername/n8n-nodes-solar)
+- [GitHub Repository](https://github.com/ehpyeon/n8n-nodes-solar)
