@@ -14,7 +14,7 @@ export class EmbeddingsUpstage implements INodeType {
 		icon: 'file:upstage_v2.svg',
 		group: ['transform', '@n8n/n8n-nodes-langchain'],
 		version: 1,
-		description: 'Generate embeddings using Upstage Solar embedding models',
+			description: 'Generate embeddings using Upstage Solar embedding models. Supports up to 100 strings per request with max 204,800 total tokens. Each text should be under 4000 tokens (optimal: under 512 tokens).',
 		defaults: {
 			name: 'Upstage Embeddings',
 		},
@@ -92,7 +92,7 @@ export class EmbeddingsUpstage implements INodeType {
 				},
 				default: '',
 				placeholder: 'Enter texts separated by newlines',
-				description: 'Multiple texts to generate embeddings for (one per line)',
+				description: 'Multiple texts to generate embeddings for (one per line). Max 100 texts, total 204,800 tokens. Each text max 4000 tokens.',
 			},
 			{
 				displayName: 'Text Field',

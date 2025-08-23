@@ -148,6 +148,85 @@ export class LmChatUpstage implements INodeType {
 						default: false,
 						description: 'Whether to stream the response',
 					},
+					{
+						displayName: 'Reasoning Effort',
+						name: 'reasoning_effort',
+						type: 'options',
+						options: [
+							{
+								name: 'Low',
+								value: 'low',
+								description: 'Disable reasoning for faster responses',
+							},
+							{
+								name: 'High',
+								value: 'high',
+								description: 'Enable reasoning for complex tasks (may increase token usage)',
+							},
+						],
+						default: 'low',
+						description: 'Controls the level of reasoning effort. Only applicable to Reasoning models.',
+					},
+					{
+						displayName: 'Frequency Penalty',
+						name: 'frequency_penalty',
+						type: 'number',
+						default: 0,
+						typeOptions: {
+							minValue: -2,
+							maxValue: 2,
+							numberPrecision: 2,
+						},
+						description: 'Controls model tendency to repeat tokens. Positive values reduce repetition, negative values allow more repetition.',
+					},
+					{
+						displayName: 'Presence Penalty',
+						name: 'presence_penalty',
+						type: 'number',
+						default: 0,
+						typeOptions: {
+							minValue: -2,
+							maxValue: 2,
+							numberPrecision: 2,
+						},
+						description: 'Adjusts tendency to include tokens already present. Positive values encourage new ideas, negative values maintain consistency.',
+					},
+					{
+						displayName: 'Response Format',
+						name: 'response_format',
+						type: 'options',
+						options: [
+							{
+								name: 'Text (Default)',
+								value: 'text',
+								description: 'Standard text response',
+							},
+							{
+								name: 'JSON Object',
+								value: 'json_object',
+								description: 'Generate JSON object (requires "JSON" in prompt)',
+							},
+							{
+								name: 'JSON Schema',
+								value: 'json_schema',
+								description: 'Generate JSON with custom schema (structured outputs)',
+							},
+						],
+						default: 'text',
+						description: 'Format for model output. JSON formats only work with solar-pro2 model.',
+					},
+					{
+						displayName: 'JSON Schema',
+						name: 'json_schema',
+						type: 'json',
+						displayOptions: {
+							show: {
+								response_format: ['json_schema'],
+							},
+						},
+						default: '{}',
+						description: 'JSON schema for structured outputs when using json_schema format',
+					},
 				],
 			},
 		],
@@ -169,6 +248,11 @@ export class LmChatUpstage implements INodeType {
 					max_tokens?: number;
 					top_p?: number;
 					stream?: boolean;
+					reasoning_effort?: string;
+					frequency_penalty?: number;
+					presence_penalty?: number;
+					response_format?: string;
+					json_schema?: string;
 				};
 
 				// Build request body
@@ -177,6 +261,25 @@ export class LmChatUpstage implements INodeType {
 					messages,
 					...options,
 				};
+
+				// Handle response_format properly
+				if (options.response_format && options.response_format !== 'text') {
+					if (options.response_format === 'json_object') {
+						requestBody.response_format = { type: 'json_object' };
+					} else if (options.response_format === 'json_schema' && options.json_schema) {
+						try {
+							const schema = JSON.parse(options.json_schema);
+							requestBody.response_format = {
+								type: 'json_schema',
+								json_schema: schema,
+							};
+						} catch (error) {
+							throw new Error('Invalid JSON schema provided');
+						}
+					}
+					// Remove the raw response_format and json_schema from body
+					delete requestBody.json_schema;
+				}
 
 				// Make API request
 				const requestOptions: IHttpRequestOptions = {

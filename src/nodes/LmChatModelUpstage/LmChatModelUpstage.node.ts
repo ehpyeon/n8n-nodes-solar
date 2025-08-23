@@ -99,6 +99,41 @@ export class LmChatModelUpstage implements INodeType {
 						description: 'Nucleus sampling parameter',
 						type: 'number',
 					},
+					{
+						displayName: 'Reasoning Effort',
+						name: 'reasoningEffort',
+						type: 'options',
+						options: [
+							{
+								name: 'Low',
+								value: 'low',
+								description: 'Disable reasoning for faster responses',
+							},
+							{
+								name: 'High',
+								value: 'high',
+								description: 'Enable reasoning for complex tasks (may increase token usage)',
+							},
+						],
+						default: 'low',
+						description: 'Controls the level of reasoning effort. Only applicable to Reasoning models.',
+					},
+					{
+						displayName: 'Frequency Penalty',
+						name: 'frequencyPenalty',
+						type: 'number',
+						default: 0,
+						typeOptions: { minValue: -2, maxValue: 2, numberPrecision: 2 },
+						description: 'Controls model tendency to repeat tokens. Positive values reduce repetition, negative values allow more repetition.',
+					},
+					{
+						displayName: 'Presence Penalty',
+						name: 'presencePenalty',
+						type: 'number',
+						default: 0,
+						typeOptions: { minValue: -2, maxValue: 2, numberPrecision: 2 },
+						description: 'Adjusts tendency to include tokens already present. Positive values encourage new ideas, negative values maintain consistency.',
+					},
 				],
 			},
 		],
@@ -111,6 +146,9 @@ export class LmChatModelUpstage implements INodeType {
 			temperature?: number;
 			maxTokens?: number;
 			topP?: number;
+			reasoningEffort?: string;
+			frequencyPenalty?: number;
+			presencePenalty?: number;
 		};
 
 		// Create a custom chat model that implements LangChain's interface
@@ -120,6 +158,9 @@ export class LmChatModelUpstage implements INodeType {
 			temperature: options.temperature,
 			maxTokens: options.maxTokens,
 			topP: options.topP,
+			reasoningEffort: options.reasoningEffort,
+			frequencyPenalty: options.frequencyPenalty,
+			presencePenalty: options.presencePenalty,
 		});
 
 		return {
@@ -138,13 +179,22 @@ class UpstageChat extends ChatOpenAI {
 		temperature?: number;
 		maxTokens?: number;
 		topP?: number;
+		reasoningEffort?: string;
+		frequencyPenalty?: number;
+		presencePenalty?: number;
 	}) {
+		const modelKwargs: any = {};
+		if (fields.reasoningEffort) modelKwargs.reasoning_effort = fields.reasoningEffort;
+		if (fields.frequencyPenalty !== undefined) modelKwargs.frequency_penalty = fields.frequencyPenalty;
+		if (fields.presencePenalty !== undefined) modelKwargs.presence_penalty = fields.presencePenalty;
+
 		super({
 			openAIApiKey: fields.apiKey,
 			modelName: fields.model,
 			temperature: fields.temperature,
 			maxTokens: fields.maxTokens,
 			topP: fields.topP,
+			modelKwargs,
 			configuration: {
 				baseURL: 'https://api.upstage.ai/v1/solar',
 			},
