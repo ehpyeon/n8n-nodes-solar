@@ -11,7 +11,7 @@ This package provides n8n community nodes for integrating with Upstage's Solar L
 
 ## Features
 
-- **Solar Chat Model**: Use Solar LLM for chat completions with support for multiple models (solar-mini, solar-pro, solar-pro-preview)
+- **Solar Chat Model**: Use Solar LLM for chat completions with support for multiple models (solar-mini, solar-pro, solar-pro2)
 - **Solar Embeddings**: Generate high-quality embeddings using Solar embedding models
 - **Easy Authentication**: Simple API key-based authentication
 - **Multiple Input Types**: Support for single text or batch processing
@@ -67,7 +67,7 @@ Use Solar LLM models for chat completions.
 **Supported Models:**
 - `solar-mini` - Fast and efficient for basic tasks
 - `solar-pro` - Powerful model for complex tasks
-- `solar-pro-preview` - Latest preview version
+- `solar-pro2` - Latest and most advanced Solar model
 
 **Key Features:**
 - Message-based conversation format
@@ -80,10 +80,8 @@ Use Solar LLM models for chat completions.
 Generate high-quality embeddings using Solar embedding models.
 
 **Supported Models:**
-- `solar-embedding-1-large-query` - Optimized for queries
-- `solar-embedding-1-large-passage` - Optimized for documents
-- `embedding-query` - Alias for query model
-- `embedding-passage` - Alias for passage model
+- `embedding-query` - Optimized for search queries and questions
+- `embedding-passage` - Optimized for documents and passages
 
 **Key Features:**
 - Single text or batch processing

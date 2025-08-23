@@ -33,27 +33,17 @@ export class EmbeddingsUpstage implements INodeType {
 				type: 'options',
 				options: [
 					{
-						name: 'solar-embedding-1-large-query',
-						value: 'solar-embedding-1-large-query',
-						description: 'Optimized for query embeddings',
-					},
-					{
-						name: 'solar-embedding-1-large-passage',
-						value: 'solar-embedding-1-large-passage',
-						description: 'Optimized for document/passage embeddings',
-					},
-					{
 						name: 'embedding-query',
 						value: 'embedding-query',
-						description: 'Alias for query-optimized model',
+						description: 'Optimized for search queries and questions',
 					},
 					{
 						name: 'embedding-passage',
 						value: 'embedding-passage',
-						description: 'Alias for passage-optimized model',
+						description: 'Optimized for documents and passages',
 					},
 				],
-				default: 'solar-embedding-1-large-query',
+				default: 'embedding-query',
 				description: 'The Solar embedding model to use',
 			},
 			{

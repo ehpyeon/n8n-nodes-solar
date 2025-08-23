@@ -43,9 +43,9 @@ export class LmChatUpstage implements INodeType {
 						description: 'Powerful model for complex tasks',
 					},
 					{
-						name: 'solar-pro-preview',
-						value: 'solar-pro-preview',
-						description: 'Latest preview version of Solar Pro',
+						name: 'solar-pro2',
+						value: 'solar-pro2',
+						description: 'Latest and most advanced Solar model',
 					},
 				],
 				default: 'solar-mini',
