@@ -81,28 +81,75 @@ export class EmbeddingsUpstageModel implements INodeType {
 }
 
 // Custom LangChain Embeddings implementation for Upstage Solar
-import { Embeddings } from '@langchain/core/embeddings';
+import { Embeddings, EmbeddingsParams } from '@langchain/core/embeddings';
+
+interface UpstageEmbeddingsParams extends EmbeddingsParams {
+	apiKey: string;
+	model: string;
+	baseURL?: string;
+	batchSize?: number;
+	stripNewLines?: boolean;
+}
 
 class UpstageEmbeddings extends Embeddings {
-	private apiKey: string;
-	private model: string;
-	private baseURL: string = 'https://api.upstage.ai/v1';
+	public apiKey: string;
+	public model: string;
+	public baseURL: string;
+	public batchSize: number;
+	public stripNewLines: boolean;
 
-	constructor(fields: {
-		apiKey: string;
-		model: string;
-	}) {
-		super({});
-		this.apiKey = fields.apiKey;
-		this.model = fields.model;
+	constructor(fields: UpstageEmbeddingsParams) {
+		const { apiKey, model, baseURL, batchSize, stripNewLines, ...rest } = fields;
+		super(rest);
+		
+		this.apiKey = apiKey;
+		this.model = model;
+		this.baseURL = baseURL ?? 'https://api.upstage.ai/v1';
+		this.batchSize = batchSize ?? 100; // Upstage API limit
+		this.stripNewLines = stripNewLines ?? true; // LangChain default
+		
+		// Log constructor call for debugging
+		console.log('UpstageEmbeddings Constructor:', {
+			model: this.model,
+			baseURL: this.baseURL,
+			batchSize: this.batchSize,
+		});
 	}
 
+	/**
+	 * Embed documents (batch processing)
+	 */
 	async embedDocuments(texts: string[]): Promise<number[][]> {
-		return this.callUpstageAPI(texts);
+		console.log(`UpstageEmbeddings.embedDocuments called with ${texts.length} texts`);
+		
+		// Preprocess texts (strip newlines if enabled)
+		const processedTexts = this.stripNewLines 
+			? texts.map(text => text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
+			: texts;
+
+		// Process in batches to respect API limits
+		const results: number[][] = [];
+		for (let i = 0; i < processedTexts.length; i += this.batchSize) {
+			const batch = processedTexts.slice(i, i + this.batchSize);
+			const batchResults = await this.callUpstageAPI(batch);
+			results.push(...batchResults);
+		}
+		
+		return results;
 	}
 
+	/**
+	 * Embed a single query
+	 */
 	async embedQuery(text: string): Promise<number[]> {
-		const result = await this.callUpstageAPI([text]);
+		console.log(`UpstageEmbeddings.embedQuery called with text: ${text?.substring(0, 50)}...`);
+		
+		// Preprocess text
+		const processedText = this.stripNewLines 
+			? text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+			: text;
+		
+		const result = await this.callUpstageAPI([processedText]);
 		return result[0];
 	}
 
