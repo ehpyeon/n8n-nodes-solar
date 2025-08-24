@@ -5,6 +5,6 @@ export { UpstageApi } from './credentials/UpstageApi.credentials';
 export { LmChatUpstage } from './nodes/LmChatUpstage/LmChatUpstage.node';
 export { EmbeddingsUpstage } from './nodes/EmbeddingsUpstage/EmbeddingsUpstage.node';
 
-// Export LangChain compatible nodes
-export { LmChatModelUpstage } from './nodes/LmChatModelUpstage/LmChatModelUpstage.node';
+// Export LangChain compatible nodes - using alias to avoid duplicate
+export { LmChatUpstage as LmChatModelUpstage } from './nodes/LmChatModelUpstage/LmChatModelUpstage.node';
 export { EmbeddingsUpstageModel } from './nodes/EmbeddingsUpstageModel/EmbeddingsUpstageModel.node';

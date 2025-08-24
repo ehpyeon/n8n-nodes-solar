@@ -4,19 +4,16 @@ import type {
 	INodeTypeDescription,
 	SupplyData,
 } from 'n8n-workflow';
-import { NodeConnectionTypes } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { ChatOpenAI } from '@langchain/openai';
-import { getHttpProxyAgent } from 'n8n-core';
-import { N8nLlmTracing, makeN8nLlmFailedAttemptHandler } from 'n8n-nodes-base/dist/llms/helpers';
-import { getConnectionHintNoticeField } from 'n8n-nodes-base/dist/utils/ConnectionHintNotice';
 
 export class LmChatUpstage implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Upstage Solar Chat Model (Advanced)',
 		name: 'lmChatUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['transform'],
+		group: ['@n8n/n8n-nodes-langchain'],
 		version: 1,
 		description: 'Language Model for AI Agent - Upstage Solar LLM (Advanced usage)',
 		defaults: {
@@ -30,19 +27,15 @@ export class LmChatUpstage implements INodeType {
 			resources: {
 				primaryDocumentation: [
 					{
-						url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatupstage/',
+						url: 'https://js.langchain.com/docs/modules/model_io/models/chat/',
 					},
 				],
 			},
 		},
-		requestDefaults: {
-			ignoreHttpStatusErrors: true,
-			baseURL: 'https://api.upstage.ai/v1',
-		},
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
 		inputs: [],
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
-		outputs: [NodeConnectionTypes.AiLanguageModel],
+		outputs: [NodeConnectionType.AiLanguageModel],
 		outputNames: ['Model'],
 		credentials: [
 			{
@@ -51,17 +44,29 @@ export class LmChatUpstage implements INodeType {
 			},
 		],
 		properties: [
-			getConnectionHintNoticeField([NodeConnectionTypes.AiChain, NodeConnectionTypes.AiAgent]),
 			{
 				displayName: 'Model',
 				name: 'model',
 				type: 'options',
-				typeOptions: {
-					loadOptionsMethod: 'getModels',
-					loadOptionsDependsOn: ['upstageApi'],
-				},
-				default: '',
 				description: 'The Upstage Solar model to use',
+				default: 'solar-mini',
+				options: [
+					{
+						name: 'Solar Mini',
+						value: 'solar-mini',
+						description: 'Fast and efficient model for basic tasks',
+					},
+					{
+						name: 'Solar Pro',
+						value: 'solar-pro',
+						description: 'Powerful model for complex tasks',
+					},
+					{
+						name: 'Solar Pro 2',
+						value: 'solar-pro2',
+						description: 'Latest and most advanced Solar model',
+					},
+				],
 			},
 			{
 				displayName: 'Options',
@@ -99,101 +104,88 @@ export class LmChatUpstage implements INodeType {
 		],
 	};
 
-	methods = {
-		loadOptions: {
-			async getModels(this: ISupplyDataFunctions) {
-				const credentials = await this.getCredentials('upstageApi');
-				const response = await this.helpers.request({
-					url: '/models',
-					method: 'GET',
-					qs: {},
-					headers: {
-						Authorization: `Bearer ${credentials.apiKey}`,
-					},
-					baseURL: 'https://api.upstage.ai/v1',
-					json: true,
-				});
-				if (!response || !Array.isArray(response.models)) {
-					return [];
-				}
-				const models = response.models as Array<{ id: string; name: string; description: string }>;
-				// Sort models alphabetically by name
-				models.sort((a, b) => a.name.localeCompare(b.name));
-				return models.map((model) => ({
-					name: model.name,
-					value: model.id,
-					description: model.description,
-				}));
-			},
-		},
-	};
-
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
 		const credentials = await this.getCredentials('upstageApi');
-
-		let modelName = this.getNodeParameter('model', itemIndex) as string;
-
+		const model = this.getNodeParameter('model', itemIndex) as string;
 		const options = this.getNodeParameter('options', itemIndex, {}) as {
 			maxTokens?: number;
 			temperature?: number;
 			streaming?: boolean;
 		};
 
-		if (!modelName) {
-			// fallback: fetch models and pick first one
-			const response = await this.helpers.request({
-				url: '/models',
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${credentials.apiKey}`,
-				},
-				baseURL: 'https://api.upstage.ai/v1',
-				json: true,
-			});
-			if (response && Array.isArray(response.models) && response.models.length > 0) {
-				modelName = response.models[0].id;
-			} else {
-				throw new Error('No Upstage Solar models available');
-			}
-		}
+		// Create a custom chat model that implements LangChain's interface
+		const chatModel = new UpstageChat({
+			apiKey: credentials.apiKey as string,
+			model,
+			temperature: options.temperature,
+			maxTokens: options.maxTokens,
+			streaming: options.streaming,
+			executeFunctions: this, // Pass executeFunctions for N8n tracing
+		});
 
-		const modelKwargs = {};
-
-		const configuration = {
-			baseURL: 'https://api.upstage.ai/v1/solar',
-			httpAgent: getHttpProxyAgent(),
-			headers: {
-				Authorization: `Bearer ${credentials.apiKey}`,
-			},
+		return {
+			response: chatModel,
 		};
+	}
+}
 
+// Custom LangChain Chat Model implementation for Upstage Solar with N8n Tracing
+class UpstageChat extends ChatOpenAI {
+	constructor(fields: {
+		apiKey: string;
+		model: string;
+		temperature?: number;
+		maxTokens?: number;
+		streaming?: boolean;
+		executeFunctions?: ISupplyDataFunctions;
+	}) {
+		// Custom token parser for Upstage API response format
 		const upstageTokensParser = (response: any) => {
 			const usage = response?.usage;
 			if (usage) {
-				const promptTokens = usage.prompt_tokens;
-				const completionTokens = usage.completion_tokens;
-				const totalTokens = usage.total_tokens;
-				this.logger?.info(
-					`Upstage tokens usage - prompt: ${promptTokens}, completion: ${completionTokens}, total: ${totalTokens}`,
-				);
-				return { promptTokens, completionTokens, totalTokens };
+				return {
+					totalTokens: usage.total_tokens,
+					promptTokens: usage.prompt_tokens,
+					completionTokens: usage.completion_tokens,
+				};
 			}
 			return undefined;
 		};
 
-		const model = new ChatOpenAI({
-			openAIApiKey: credentials.apiKey as string,
-			modelName,
-			configuration,
-			callbacks: [new N8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
-			onFailedAttempt: makeN8nLlmFailedAttemptHandler(this),
-			maxTokens: options.maxTokens,
-			temperature: options.temperature,
-			streaming: options.streaming || false,
-		});
+		// Prepare callbacks for N8n tracing
+		const callbacks = [];
+		if (fields.executeFunctions) {
+			try {
+				// Try to create N8nLlmTracing callback if available
+				const { N8nLlmTracing } = require('@n8n/n8n-nodes-langchain/dist/utils/N8nLlmTracing');
+				callbacks.push(new N8nLlmTracing(fields.executeFunctions, upstageTokensParser));
+			} catch (error) {
+				// Fallback: create a simple logging callback
+				callbacks.push({
+					handleLLMStart: async (llm: any, prompts: string[]) => {
+						console.log('Solar LLM Start:', { model: fields.model, prompts });
+					},
+					handleLLMEnd: async (output: any) => {
+						const tokens = upstageTokensParser(output);
+						console.log('Solar LLM End:', { tokens, output });
+					},
+					handleLLMError: async (error: Error) => {
+						console.error('Solar LLM Error:', error);
+					},
+				});
+			}
+		}
 
-		return {
-			response: model,
-		};
+		super({
+			openAIApiKey: fields.apiKey,
+			modelName: fields.model,
+			temperature: fields.temperature,
+			maxTokens: fields.maxTokens,
+			streaming: fields.streaming || false,
+			configuration: {
+				baseURL: 'https://api.upstage.ai/v1/solar',
+			},
+			callbacks: callbacks.length > 0 ? callbacks : undefined,
+		});
 	}
 }
