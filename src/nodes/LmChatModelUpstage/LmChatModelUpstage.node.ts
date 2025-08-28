@@ -10,7 +10,7 @@ import {
 	NodeConnectionType,
 } from 'n8n-workflow';
 
-// Removed n8n internal imports - these utilities are not available in community nodes
+import { createN8nLlmTracing, createN8nLlmFailedAttemptHandler } from '../../utils/tracing';
 
 export class LmChatModelUpstage implements INodeType {
 	description: INodeTypeDescription = {
@@ -415,8 +415,8 @@ export class LmChatModelUpstage implements INodeType {
 			apiKey: credentials.apiKey as string,
 			modelName,
 			configuration,
-			// callbacks: [new N8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
-			// onFailedAttempt: makeN8nLlmFailedAttemptHandler(this),
+			callbacks: [createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
+			onFailedAttempt: createN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
 			temperature: options.temperature,
 			streaming: options.streaming || false,
