@@ -255,6 +255,21 @@ export class LmChatUpstage implements INodeType {
 					json_schema?: string;
 				};
 
+				// Validate messages array
+				if (!messages || messages.length === 0) {
+					throw new Error('At least one message is required for chat completion');
+				}
+
+				// Validate message content
+				for (const message of messages) {
+					if (!message.content || message.content.trim() === '') {
+						throw new Error('All messages must have non-empty content');
+					}
+					if (!['system', 'user', 'assistant'].includes(message.role)) {
+						throw new Error(`Invalid message role: ${message.role}. Must be 'system', 'user', or 'assistant'`);
+					}
+				}
+
 				// Build request body
 				const requestBody: any = {
 					model,
@@ -284,7 +299,7 @@ export class LmChatUpstage implements INodeType {
 				// Make API request
 				const requestOptions: IHttpRequestOptions = {
 					method: 'POST',
-					url: 'https://api.upstage.ai/v1/solar/chat/completions',
+					url: 'https://api.upstage.ai/v1/chat/completions',
 					body: requestBody,
 					json: true,
 				};
@@ -320,13 +335,26 @@ export class LmChatUpstage implements INodeType {
 					});
 				}
 			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				
+				// Log detailed error information
+				console.error('🚫 Upstage Solar LLM Error:', {
+					error: errorMessage,
+					itemIndex: i,
+					timestamp: new Date().toISOString(),
+				});
+
 				if (this.continueOnFail()) {
 					returnData.push({
-						json: { error: (error as Error).message || 'Unknown error' },
+						json: { 
+							error: errorMessage,
+							error_code: (error as any)?.code || 'unknown_error',
+							timestamp: new Date().toISOString()
+						},
 						pairedItem: { item: i },
 					});
 				} else {
-					throw error;
+					throw new Error(`Upstage Solar LLM failed for item ${i}: ${errorMessage}`);
 				}
 			}
 		}

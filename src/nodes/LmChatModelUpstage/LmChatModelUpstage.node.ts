@@ -379,6 +379,8 @@ export class LmChatModelUpstage implements INodeType {
 			defaultHeaders: {
 				'Content-Type': 'application/json',
 			},
+			// Ensure proper API compatibility
+			apiVersion: '2024-01-01', // Add API version for consistency
 		};
 
 		const upstageTokensParser = (llmOutput: any) => {
@@ -424,24 +426,15 @@ export class LmChatModelUpstage implements INodeType {
 
 		const model = new ChatOpenAI({
 			apiKey: credentials.apiKey as string,
-			modelName,
+			model: modelName, // Use 'model' instead of 'modelName' for better API compatibility
 			configuration,
+			callbacks: tracingConfig.callbacks,
+			metadata: tracingConfig.metadata,
 			onFailedAttempt: createN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
 			temperature: options.temperature,
 			streaming: options.streaming || false,
 		});
-
-		// Apply tracing configuration
-		if (tracingConfig.callbacks) {
-			model.callbacks = tracingConfig.callbacks;
-		}
-		if (tracingConfig.metadata) {
-			model.metadata = tracingConfig.metadata;
-		}
-		if (tracingConfig.runName) {
-			(model as any).runName = tracingConfig.runName;
-		}
 
 		return {
 			response: model,
