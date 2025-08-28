@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-solar",
-  "version": "0.2.13",
+  "version": "0.3.0",
   "description": "Solar LLM and Embeddings nodes for n8n",
   "license": "MIT",
   "homepage": "https://github.com/ehpyeon/n8n-nodes-solar",
@@ -41,7 +41,10 @@
       "dist/nodes/LmChatUpstage/LmChatUpstage.node.js",
       "dist/nodes/EmbeddingsUpstage/EmbeddingsUpstage.node.js",
       "dist/nodes/LmChatModelUpstage/LmChatModelUpstage.node.js",
-      "dist/nodes/EmbeddingsUpstageModel/EmbeddingsUpstageModel.node.js"
+      "dist/nodes/EmbeddingsUpstageModel/EmbeddingsUpstageModel.node.js",
+      "dist/nodes/DocumentParsingUpstage/DocumentParsingUpstage.node.js",
+      "dist/nodes/InformationExtractionUpstage/InformationExtractionUpstage.node.js",
+      "dist/nodes/InformationExtractionSchemaUpstage/InformationExtractionSchemaUpstage.node.js"
     ]
   },
   "engines": {

@@ -6,6 +6,9 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
 
+import { logWrapper } from '@utils/logWrapper';
+import { getConnectionHintNoticeField } from '@utils/sharedFields';
+
 export class EmbeddingsUpstageModel implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Upstage Embeddings Model',
@@ -42,6 +45,7 @@ export class EmbeddingsUpstageModel implements INodeType {
 			},
 		],
 		properties: [
+			getConnectionHintNoticeField([NodeConnectionType.AiVectorStore]),
 			{
 				displayName: 'Model',
 				name: 'model',
@@ -65,6 +69,7 @@ export class EmbeddingsUpstageModel implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+		this.logger.debug('Supply data for embeddings');
 		const credentials = await this.getCredentials('upstageApi');
 		const model = this.getNodeParameter('model', itemIndex) as string;
 
@@ -75,7 +80,7 @@ export class EmbeddingsUpstageModel implements INodeType {
 		});
 
 		return {
-			response: embeddingModel,
+			response: logWrapper(embeddingModel, this),
 		};
 	}
 }
@@ -108,20 +113,12 @@ class UpstageEmbeddings extends Embeddings {
 		this.batchSize = batchSize ?? 100; // Upstage API limit
 		this.stripNewLines = stripNewLines ?? true; // LangChain default
 		
-		// Log constructor call for debugging
-		console.log('UpstageEmbeddings Constructor:', {
-			model: this.model,
-			baseURL: this.baseURL,
-			batchSize: this.batchSize,
-		});
 	}
 
 	/**
 	 * Embed documents (batch processing)
 	 */
 	async embedDocuments(texts: string[]): Promise<number[][]> {
-		console.log(`UpstageEmbeddings.embedDocuments called with ${texts.length} texts`);
-		
 		// Preprocess texts (strip newlines if enabled)
 		const processedTexts = this.stripNewLines 
 			? texts.map(text => text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
@@ -142,8 +139,6 @@ class UpstageEmbeddings extends Embeddings {
 	 * Embed a single query
 	 */
 	async embedQuery(text: string): Promise<number[]> {
-		console.log(`UpstageEmbeddings.embedQuery called with text: ${text?.substring(0, 50)}...`);
-		
 		// Preprocess text
 		const processedText = this.stripNewLines 
 			? text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
@@ -167,7 +162,7 @@ class UpstageEmbeddings extends Embeddings {
 			// Check individual text length (Upstage limit: 4000 tokens per text)
 			for (const text of cleanInput) {
 				if (text.length > 16000) { // Rough estimate: ~4 chars per token
-					console.warn(`Text length ${text.length} might exceed token limit:`, text.substring(0, 100) + '...');
+					// Text length might exceed token limit
 				}
 			}
 
@@ -182,13 +177,6 @@ class UpstageEmbeddings extends Embeddings {
 				input: cleanInput.length === 1 ? cleanInput[0] : cleanInput,
 			};
 
-			// Debug logging
-			console.log('Upstage Embeddings Request:', {
-				url: `${this.baseURL}/embeddings`,
-				model: this.model,
-				inputCount: cleanInput.length,
-				inputSample: cleanInput[0]?.substring(0, 100) + (cleanInput[0]?.length > 100 ? '...' : ''),
-			});
 
 			const response = await fetch(`${this.baseURL}/embeddings`, {
 				method: 'POST',
@@ -201,17 +189,10 @@ class UpstageEmbeddings extends Embeddings {
 
 			if (!response.ok) {
 				const errorBody = await response.text();
-				console.error('Upstage API Error Response:', errorBody);
-				console.error('Request Body:', JSON.stringify(requestBody, null, 2));
 				throw new Error(`Upstage API error: ${response.status} - ${errorBody}`);
 			}
 
 			const data: any = await response.json();
-			console.log('Upstage API Success Response:', {
-				model: data.model,
-				usage: data.usage,
-				dataCount: data.data?.length,
-			});
 			
 			if (!data.data || !Array.isArray(data.data)) {
 				throw new Error('Invalid response format from Upstage API');
