@@ -1,29 +1,27 @@
 /* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import { ChatOpenAI } from '@langchain/openai';
 import {
+	NodeConnectionTypes,
 	type INodeType,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
 	type ILoadOptionsFunctions,
 	type INodePropertyOptions,
-	NodeConnectionType,
 } from 'n8n-workflow';
 
+import { getHttpProxyAgent } from '@utils/httpProxyAgent';
+import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
-import { 
-	createN8nLlmTracing, 
-	createN8nLlmFailedAttemptHandler,
-	getHttpProxyAgent,
-	getConnectionHintNoticeField
-} from '../../utils/tracing';
+import { makeN8nLlmFailedAttemptHandler } from '../n8nLlmFailedAttemptHandler';
+import { N8nLlmTracing } from '../N8nLlmTracing';
 
-export class LmChatModelUpstage implements INodeType {
+export class LmChatUpstage implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Solar Chat Model',
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
-		name: 'lmChatModelUpstage',
-		icon: 'file:upstage_v2.svg',
+		name: 'lmChatUpstage',
+		icon: 'file:upstage.svg',
 		group: ['transform'],
 		version: 1,
 		description: 'For advanced usage with an AI chain',
@@ -45,7 +43,7 @@ export class LmChatModelUpstage implements INodeType {
 			},
 		},
 		inputs: [],
-		outputs: [NodeConnectionType.AiLanguageModel],
+		outputs: [NodeConnectionTypes.AiLanguageModel],
 		outputNames: ['Model'],
 		credentials: [
 			{
@@ -58,14 +56,7 @@ export class LmChatModelUpstage implements INodeType {
 			baseURL: 'https://api.upstage.ai/v1',
 		},
 		properties: [
-			// Add connection hint notice field if available
-			...(getConnectionHintNoticeField([
-				NodeConnectionType.AiChain, 
-				NodeConnectionType.AiAgent
-			]) ? [getConnectionHintNoticeField([
-				NodeConnectionType.AiChain, 
-				NodeConnectionType.AiAgent
-			])] : []),
+			getConnectionHintNoticeField([NodeConnectionTypes.AiChain, NodeConnectionTypes.AiAgent]),
 			{
 				displayName: 'Model',
 				name: 'model',
@@ -388,7 +379,7 @@ export class LmChatModelUpstage implements INodeType {
 
 		const configuration = {
 			baseURL: 'https://api.upstage.ai/v1',
-			httpAgent: getHttpProxyAgent(), // Use n8n's proxy agent when available
+			httpAgent: getHttpProxyAgent(),
 			defaultHeaders: {
 				'Content-Type': 'application/json',
 			},
@@ -424,30 +415,16 @@ export class LmChatModelUpstage implements INodeType {
 			};
 		};
 
-		// Try to use n8n's internal tracing when available
-		const tracing = createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser });
-		const failureHandler = createN8nLlmFailedAttemptHandler(this);
-
-		const modelConfig: any = {
-			apiKey: credentials.apiKey as string,
-			model: modelName, // Use 'model' instead of 'modelName' for better API compatibility
+		const model = new ChatOpenAI({
+			openAIApiKey: credentials.apiKey as string,
+			modelName,
 			configuration,
+			callbacks: [new N8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
+			onFailedAttempt: makeN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
 			temperature: options.temperature,
 			streaming: options.streaming || false,
-		};
-
-		// Add tracing callbacks if available (when installed in n8n core)
-		if (tracing) {
-			modelConfig.callbacks = [tracing];
-		}
-
-		// Add failure handler if available
-		if (failureHandler) {
-			modelConfig.onFailedAttempt = failureHandler;
-		}
-
-		const model = new ChatOpenAI(modelConfig);
+		});
 
 		return {
 			response: model,

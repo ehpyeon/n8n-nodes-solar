@@ -32,3 +32,31 @@ export function createN8nLlmFailedAttemptHandler(context: ISupplyDataFunctions) 
 		return undefined;
 	}
 }
+
+/**
+ * Gets HTTP proxy agent using n8n's internal utilities when available
+ */
+export function getHttpProxyAgent() {
+	try {
+		// Try to use n8n's internal getHttpProxyAgent
+		const { getHttpProxyAgent } = require('@utils/httpProxyAgent');
+		return getHttpProxyAgent();
+	} catch (error) {
+		// Fallback: return undefined (no proxy)
+		return undefined;
+	}
+}
+
+/**
+ * Gets connection hint notice field using n8n's internal utilities when available
+ */
+export function getConnectionHintNoticeField(connectionTypes: any[]) {
+	try {
+		// Try to use n8n's internal getConnectionHintNoticeField
+		const { getConnectionHintNoticeField } = require('@utils/sharedFields');
+		return getConnectionHintNoticeField(connectionTypes);
+	} catch (error) {
+		// Fallback: return null (no hint field)
+		return null;
+	}
+}
