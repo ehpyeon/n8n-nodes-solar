@@ -1,40 +1,44 @@
-import type {
-	ISupplyDataFunctions,
-	INodeType,
-	INodeTypeDescription,
-	SupplyData,
-} from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+/* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import { ChatOpenAI } from '@langchain/openai';
+import {
+	type INodeType,
+	type INodeTypeDescription,
+	type ISupplyDataFunctions,
+	type SupplyData,
+	type ILoadOptionsFunctions,
+	type INodePropertyOptions,
+	NodeConnectionType,
+} from 'n8n-workflow';
 
-export class LmChatUpstage implements INodeType {
+// Removed n8n internal imports - these utilities are not available in community nodes
+
+export class LmChatModelUpstage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Upstage Solar Chat Model (Advanced)',
-		name: 'lmChatUpstage',
+		displayName: 'Solar Chat Model',
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
+		name: 'lmChatModelUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['@n8n/n8n-nodes-langchain'],
+		group: ['transform'],
 		version: 1,
-		description: 'Language Model for AI Agent - Upstage Solar LLM (Advanced usage)',
+		description: 'For advanced usage with an AI chain',
 		defaults: {
-			name: 'Upstage Solar Chat Model (Advanced)',
+			name: 'Solar Chat Model',
 		},
 		codex: {
 			categories: ['AI'],
 			subcategories: {
 				AI: ['Language Models', 'Root Nodes'],
+				'Language Models': ['Chat Models (Recommended)'],
 			},
 			resources: {
 				primaryDocumentation: [
 					{
-						url: 'https://js.langchain.com/docs/modules/model_io/models/chat/',
+						url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatupstage/',
 					},
 				],
 			},
 		},
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
 		inputs: [],
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
 		outputs: [NodeConnectionType.AiLanguageModel],
 		outputNames: ['Model'],
 		credentials: [
@@ -43,53 +47,91 @@ export class LmChatUpstage implements INodeType {
 				required: true,
 			},
 		],
+		requestDefaults: {
+			ignoreHttpStatusErrors: true,
+			baseURL: 'https://api.upstage.ai/v1',
+		},
 		properties: [
+			// getConnectionHintNoticeField([NodeConnectionType.AiChain, NodeConnectionType.AiAgent]),
 			{
 				displayName: 'Model',
 				name: 'model',
 				type: 'options',
-				description: 'The Upstage Solar model to use',
-				default: 'solar-mini',
-				options: [
-					{
-						name: 'Solar Mini',
-						value: 'solar-mini',
-						description: 'Fast and efficient model for basic tasks',
+				description:
+					'The model which will generate the completion. <a href="https://developers.upstage.ai/docs/apis/chat">Learn more</a>.',
+				typeOptions: {
+					loadOptions: {
+						routing: {
+							request: {
+								method: 'GET',
+								url: '/models',
+							},
+							output: {
+								postReceive: [
+									{
+										type: 'rootProperty',
+										properties: {
+											property: 'data',
+										},
+									},
+									{
+										type: 'filter',
+										properties: {
+											pass: "={{ $responseItem && $responseItem.id && $responseItem.id.toLowerCase().includes('solar') }}",
+										},
+									},
+									{
+										type: 'setKeyValue',
+										properties: {
+											name: '={{ $responseItem.id }}',
+											value: '={{ $responseItem.id }}',
+										},
+									},
+									{
+										type: 'sort',
+										properties: {
+											key: 'name',
+										},
+									},
+								],
+							},
+						},
 					},
-					{
-						name: 'Solar Pro',
-						value: 'solar-pro',
-						description: 'Powerful model for complex tasks',
+				},
+				routing: {
+					send: {
+						type: 'body',
+						property: 'model',
 					},
-					{
-						name: 'Solar Pro 2',
-						value: 'solar-pro2',
-						description: 'Latest and most advanced Solar model',
-					},
-				],
+				},
+				default: '',
 			},
 			{
 				displayName: 'Options',
 				name: 'options',
 				placeholder: 'Add Option',
-				description: 'Additional options to configure',
+				description: 'Additional options to add',
 				type: 'collection',
 				default: {},
 				options: [
 					{
 						displayName: 'Maximum Number of Tokens',
 						name: 'maxTokens',
-						default: 1000,
-						typeOptions: { minValue: 1, maxValue: 4000 },
-						description: 'Maximum number of tokens to generate',
+						default: -1,
+						description:
+							'The maximum number of tokens to generate in the completion. Most models have a context length of 2048 tokens (except for the newest models, which support 32,768).',
 						type: 'number',
+						typeOptions: {
+							maxValue: 32768,
+						},
 					},
 					{
 						displayName: 'Sampling Temperature',
 						name: 'temperature',
 						default: 0.7,
-						typeOptions: { minValue: 0, maxValue: 2, numberPrecision: 1 },
-						description: 'Controls randomness. Higher values make output more random.',
+						typeOptions: { maxValue: 2, minValue: 0, numberPrecision: 1 },
+						description:
+							'Controls randomness: Lowering results in less random completions. As the temperature approaches zero, the model will become deterministic and repetitive.',
 						type: 'number',
 					},
 					{
@@ -104,88 +146,284 @@ export class LmChatUpstage implements INodeType {
 		],
 	};
 
+	methods = {
+		loadOptions: {
+			async getModels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const credentials = await this.getCredentials('upstageApi');
+				const requestOptions = {
+					method: 'GET' as const,
+					headers: {
+						Authorization: `Bearer ${credentials.apiKey}`,
+						'Content-Type': 'application/json',
+					},
+				};
+
+				try {
+					const response = await this.helpers.request(
+						'https://api.upstage.ai/v1/models',
+						requestOptions,
+					);
+
+					if (!response?.data || !Array.isArray(response.data)) {
+						console.warn('Invalid response format from models API:', response);
+						return [{ name: 'solar-mini', value: 'solar-mini' }];
+					}
+
+					// Filter for Solar models only, remove duplicates, and sort by version/date (latest first)
+					const solarModels = response.data
+						.filter((model: any) => model?.id?.toLowerCase().includes('solar'))
+						.map((model: any) => ({ name: model.id, value: model.id, ...model }))
+						.filter(
+							(model: any, index: number, self: any[]) =>
+								self.findIndex((m) => m.value === model.value) === index,
+						)
+						.sort((a: any, b: any) => {
+							const extractVersionInfo = (name: string) => {
+								const dateMatch = name.match(/(\d{6})$/);
+								if (dateMatch) {
+									const dateStr = dateMatch[1];
+									const year = 2000 + parseInt(dateStr.substring(0, 2));
+									const month = parseInt(dateStr.substring(2, 4));
+									const day = parseInt(dateStr.substring(4, 6));
+									return {
+										hasDate: true,
+										date: new Date(year, month - 1, day).getTime(),
+										name: name.replace(`-${dateStr}`, ''),
+									};
+								}
+
+								const versionMatch = name.match(/v?(\d+)\.?(\d+)?/);
+								if (versionMatch) {
+									const major = parseInt(versionMatch[1]);
+									const minor = parseInt(versionMatch[2] || '0');
+									return {
+										hasVersion: true,
+										version: major * 1000 + minor,
+										name: name.replace(versionMatch[0], ''),
+									};
+								}
+
+								return { name };
+							};
+
+							const infoA = extractVersionInfo(a.name);
+							const infoB = extractVersionInfo(b.name);
+
+							if (infoA.hasDate && infoB.hasDate) {
+								return infoB.date! - infoA.date!;
+							}
+
+							if (infoA.hasVersion && infoB.hasVersion) {
+								return infoB.version! - infoA.version!;
+							}
+
+							if ((infoA.hasDate || infoA.hasVersion) && !(infoB.hasDate || infoB.hasVersion)) {
+								return -1;
+							}
+							if ((infoB.hasDate || infoB.hasVersion) && !(infoA.hasDate || infoA.hasVersion)) {
+								return 1;
+							}
+
+							if (infoA.name === infoB.name) {
+								const getTierPriority = (name: string) => {
+									if (name.includes('pro2')) return 4;
+									if (name.includes('pro') && !name.includes('pro2')) return 3;
+									if (name.includes('solar-1')) return 2;
+									if (name.includes('mini')) return 1;
+									return 0;
+								};
+
+								const priorityA = getTierPriority(a.name);
+								const priorityB = getTierPriority(b.name);
+
+								if (priorityA !== priorityB) {
+									return priorityB - priorityA;
+								}
+							}
+
+							return b.name.localeCompare(a.name);
+						});
+
+					if (solarModels.length === 0) {
+						console.warn('No Solar models found in API response');
+						return [{ name: 'solar-mini', value: 'solar-mini' }];
+					}
+
+					return solarModels;
+				} catch (error) {
+					console.error('Error fetching models:', error);
+					return [{ name: 'solar-mini', value: 'solar-mini' }];
+				}
+			},
+		},
+	};
+
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
 		const credentials = await this.getCredentials('upstageApi');
-		const model = this.getNodeParameter('model', itemIndex) as string;
+
+		let modelName = this.getNodeParameter('model', itemIndex) as string;
+
+		if (!modelName) {
+			try {
+				const requestOptions = {
+					method: 'GET' as const,
+					headers: {
+						Authorization: `Bearer ${credentials.apiKey}`,
+						'Content-Type': 'application/json',
+					},
+				};
+
+				const response = await this.helpers.request(
+					'https://api.upstage.ai/v1/models',
+					requestOptions,
+				);
+
+				if (response?.data && Array.isArray(response.data)) {
+					const solarModels = response.data
+						.filter((model: any) => model?.id?.toLowerCase().includes('solar'))
+						.map((model: any) => model.id)
+						.sort((a: string, b: string) => {
+							const extractVersionInfo = (name: string) => {
+								const dateMatch = name.match(/(\d{6})$/);
+								if (dateMatch) {
+									const dateStr = dateMatch[1];
+									const year = 2000 + parseInt(dateStr.substring(0, 2));
+									const month = parseInt(dateStr.substring(2, 4));
+									const day = parseInt(dateStr.substring(4, 6));
+									return {
+										hasDate: true,
+										date: new Date(year, month - 1, day).getTime(),
+										name: name.replace(`-${dateStr}`, ''),
+									};
+								}
+
+								const versionMatch = name.match(/v?(\d+)\.?(\d+)?/);
+								if (versionMatch) {
+									const major = parseInt(versionMatch[1]);
+									const minor = parseInt(versionMatch[2] || '0');
+									return {
+										hasVersion: true,
+										version: major * 1000 + minor,
+										name: name.replace(versionMatch[0], ''),
+									};
+								}
+
+								return { name };
+							};
+
+							const infoA = extractVersionInfo(a);
+							const infoB = extractVersionInfo(b);
+
+							if (infoA.hasDate && infoB.hasDate) {
+								return infoB.date! - infoA.date!;
+							}
+
+							if (infoA.hasVersion && infoB.hasVersion) {
+								return infoB.version! - infoA.version!;
+							}
+
+							if ((infoA.hasDate || infoA.hasVersion) && !(infoB.hasDate || infoB.hasVersion)) {
+								return -1;
+							}
+							if ((infoB.hasDate || infoB.hasVersion) && !(infoA.hasDate || infoA.hasVersion)) {
+								return 1;
+							}
+
+							if (infoA.name === infoB.name) {
+								const getTierPriority = (name: string) => {
+									if (name.includes('pro2')) return 4;
+									if (name.includes('pro') && !name.includes('pro2')) return 3;
+									if (name.includes('solar-1')) return 2;
+									if (name.includes('mini')) return 1;
+									return 0;
+								};
+
+								const priorityA = getTierPriority(a);
+								const priorityB = getTierPriority(b);
+
+								if (priorityA !== priorityB) {
+									return priorityB - priorityA;
+								}
+							}
+
+							return b.localeCompare(a);
+						});
+
+					if (solarModels.length > 0) {
+						modelName = solarModels[0];
+						console.log(`🔄 Auto-selected latest Solar model: ${modelName}`);
+					}
+				}
+			} catch (error) {
+				console.warn('Failed to fetch models dynamically, using fallback:', error);
+			}
+
+			if (!modelName) {
+				const fallbackModels = ['solar-pro2-preview', 'solar-pro', 'solar-mini'];
+				modelName = fallbackModels[0];
+				console.log(`🔄 Using fallback model: ${modelName}`);
+			}
+		}
+
 		const options = this.getNodeParameter('options', itemIndex, {}) as {
 			maxTokens?: number;
 			temperature?: number;
 			streaming?: boolean;
 		};
 
-		// Create a custom chat model that implements LangChain's interface
-		const chatModel = new UpstageChat({
+		const modelKwargs = {};
+
+		const configuration = {
+			baseURL: 'https://api.upstage.ai/v1',
+			// httpAgent: getHttpProxyAgent(),
+			defaultHeaders: {
+				'Content-Type': 'application/json',
+			},
+		};
+
+		const upstageTokensParser = (llmOutput: any) => {
+			const usage = llmOutput?.tokenUsage || llmOutput?.usage;
+			if (usage) {
+				const completionTokens = usage.completion_tokens || usage.completionTokens || 0;
+				const promptTokens = usage.prompt_tokens || usage.promptTokens || 0;
+				const totalTokens =
+					usage.total_tokens || usage.totalTokens || completionTokens + promptTokens;
+
+				console.log('🔍 Solar LLM Token Usage:', {
+					completionTokens,
+					promptTokens,
+					totalTokens,
+					rawUsage: usage,
+				});
+
+				return {
+					completionTokens,
+					promptTokens,
+					totalTokens,
+				};
+			}
+
+			console.log('⚠️ No token usage data found in Solar LLM response:', llmOutput);
+			return {
+				completionTokens: 0,
+				promptTokens: 0,
+				totalTokens: 0,
+			};
+		};
+
+		const model = new ChatOpenAI({
 			apiKey: credentials.apiKey as string,
-			model,
-			temperature: options.temperature,
+			modelName,
+			configuration,
+			// callbacks: [new N8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
+			// onFailedAttempt: makeN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
-			streaming: options.streaming,
-			executeFunctions: this, // Pass executeFunctions for N8n tracing
+			temperature: options.temperature,
+			streaming: options.streaming || false,
 		});
 
 		return {
-			response: chatModel,
+			response: model,
 		};
-	}
-}
-
-// Custom LangChain Chat Model implementation for Upstage Solar with N8n Tracing
-class UpstageChat extends ChatOpenAI {
-	constructor(fields: {
-		apiKey: string;
-		model: string;
-		temperature?: number;
-		maxTokens?: number;
-		streaming?: boolean;
-		executeFunctions?: ISupplyDataFunctions;
-	}) {
-		// Custom token parser for Upstage API response format
-		const upstageTokensParser = (response: any) => {
-			const usage = response?.usage;
-			if (usage) {
-				return {
-					totalTokens: usage.total_tokens,
-					promptTokens: usage.prompt_tokens,
-					completionTokens: usage.completion_tokens,
-				};
-			}
-			return undefined;
-		};
-
-		// Prepare callbacks for N8n tracing
-		const callbacks = [];
-		if (fields.executeFunctions) {
-			try {
-				// Try to create N8nLlmTracing callback if available
-				const { N8nLlmTracing } = require('@n8n/n8n-nodes-langchain/dist/utils/N8nLlmTracing');
-				callbacks.push(new N8nLlmTracing(fields.executeFunctions, upstageTokensParser));
-			} catch (error) {
-				// Fallback: create a simple logging callback
-				callbacks.push({
-					handleLLMStart: async (llm: any, prompts: string[]) => {
-						console.log('Solar LLM Start:', { model: fields.model, prompts });
-					},
-					handleLLMEnd: async (output: any) => {
-						const tokens = upstageTokensParser(output);
-						console.log('Solar LLM End:', { tokens, output });
-					},
-					handleLLMError: async (error: Error) => {
-						console.error('Solar LLM Error:', error);
-					},
-				});
-			}
-		}
-
-		super({
-			openAIApiKey: fields.apiKey,
-			modelName: fields.model,
-			temperature: fields.temperature,
-			maxTokens: fields.maxTokens,
-			streaming: fields.streaming || false,
-			configuration: {
-				baseURL: 'https://api.upstage.ai/v1/solar',
-			},
-			callbacks: callbacks.length > 0 ? callbacks : undefined,
-		});
 	}
 }
