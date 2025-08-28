@@ -18,7 +18,7 @@ export class LmChatModelUpstage implements INodeType {
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
 		name: 'lmChatModelUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['transform', '@n8n/n8n-nodes-langchain'],
+		group: ['transform'],
 		version: 1,
 		description: 'For advanced usage with an AI chain',
 		defaults: {
@@ -413,16 +413,30 @@ export class LmChatModelUpstage implements INodeType {
 			};
 		};
 
-		const model = new ChatOpenAI({
+		// Try to use n8n's internal tracing when available
+		const tracing = createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser });
+		const failureHandler = createN8nLlmFailedAttemptHandler(this);
+
+		const modelConfig: any = {
 			apiKey: credentials.apiKey as string,
 			model: modelName, // Use 'model' instead of 'modelName' for better API compatibility
 			configuration,
-			callbacks: [createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
-			onFailedAttempt: createN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
 			temperature: options.temperature,
 			streaming: options.streaming || false,
-		});
+		};
+
+		// Add tracing callbacks if available (when installed in n8n core)
+		if (tracing) {
+			modelConfig.callbacks = [tracing];
+		}
+
+		// Add failure handler if available
+		if (failureHandler) {
+			modelConfig.onFailedAttempt = failureHandler;
+		}
+
+		const model = new ChatOpenAI(modelConfig);
 
 		return {
 			response: model,
