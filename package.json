@@ -67,5 +67,10 @@
   },
   "bugs": {
     "url": "https://github.com/ehpyeon/n8n-nodes-solar/issues"
+  },
+  "dependencies": {
+    "@types/lodash": "^4.17.20",
+    "https-proxy-agent": "^7.0.6",
+    "lodash": "^4.17.21"
   }
 }

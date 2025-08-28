@@ -11,12 +11,10 @@ import {
 } from 'n8n-workflow';
 
 
-import { 
-	createN8nLlmTracing, 
-	createN8nLlmFailedAttemptHandler,
-	getHttpProxyAgent,
-	getConnectionHintNoticeField
-} from '../../utils/tracing';
+import { N8nLlmTracing } from '../../utils/N8nLlmTracing';
+import { makeN8nLlmFailedAttemptHandler } from '../../utils/n8nLlmFailedAttemptHandler';
+import { getHttpProxyAgent } from '../../utils/httpProxyAgent';
+import { getConnectionHintNoticeField } from '../../utils/sharedFields';
 
 export class LmChatModelUpstage implements INodeType {
 	description: INodeTypeDescription = {
@@ -58,14 +56,7 @@ export class LmChatModelUpstage implements INodeType {
 			baseURL: 'https://api.upstage.ai/v1',
 		},
 		properties: [
-			// Add connection hint notice field if available
-			...(getConnectionHintNoticeField([
-				NodeConnectionType.AiChain, 
-				NodeConnectionType.AiAgent
-			]) ? [getConnectionHintNoticeField([
-				NodeConnectionType.AiChain, 
-				NodeConnectionType.AiAgent
-			])] : []),
+			getConnectionHintNoticeField([NodeConnectionType.AiChain, NodeConnectionType.AiAgent]),
 			{
 				displayName: 'Model',
 				name: 'model',
@@ -424,9 +415,9 @@ export class LmChatModelUpstage implements INodeType {
 			};
 		};
 
-		// Try to use n8n's internal tracing when available
-		const tracing = createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser });
-		const failureHandler = createN8nLlmFailedAttemptHandler(this);
+		// Create tracing and failure handler using our implementations
+		const tracing = new N8nLlmTracing(this, { tokensUsageParser: upstageTokensParser });
+		const failureHandler = makeN8nLlmFailedAttemptHandler(this);
 
 		const modelConfig: any = {
 			apiKey: credentials.apiKey as string,

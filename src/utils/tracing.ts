@@ -1,62 +1,56 @@
 import type { ISupplyDataFunctions } from 'n8n-workflow';
+import { N8nLlmTracing } from './N8nLlmTracing';
+import { makeN8nLlmFailedAttemptHandler } from './n8nLlmFailedAttemptHandler';
+import { getHttpProxyAgent as getHttpProxyAgentImpl } from './httpProxyAgent';
+import { getConnectionHintNoticeField as getConnectionHintNoticeFieldImpl } from './sharedFields';
 
 /**
- * Creates N8nLlmTracing using n8n's internal modules when available
- * Falls back to basic implementation for community nodes
+ * Creates N8nLlmTracing using our implementation
  */
 export function createN8nLlmTracing(
 	context: ISupplyDataFunctions,
 	options: { tokensUsageParser?: (llmOutput: any) => any } = {}
 ) {
 	try {
-		// Try to use n8n's internal N8nLlmTracing (available when installed in n8n core)
-		const { N8nLlmTracing } = require('../N8nLlmTracing');
 		return new N8nLlmTracing(context, options);
 	} catch (error) {
-		// Fallback: return null to indicate no tracing available
-		// This allows the calling code to handle gracefully
+		console.warn('Failed to create N8nLlmTracing:', error);
 		return null;
 	}
 }
 
 /**
- * Creates failure attempt handler using n8n's internal modules when available
+ * Creates failure attempt handler using our implementation
  */
 export function createN8nLlmFailedAttemptHandler(context: ISupplyDataFunctions) {
 	try {
-		// Try to use n8n's internal failure handler
-		const { makeN8nLlmFailedAttemptHandler } = require('../n8nLlmFailedAttemptHandler');
 		return makeN8nLlmFailedAttemptHandler(context);
 	} catch (error) {
-		// Fallback: return undefined to indicate no handler available
+		console.warn('Failed to create failure handler:', error);
 		return undefined;
 	}
 }
 
 /**
- * Gets HTTP proxy agent using n8n's internal utilities when available
+ * Gets HTTP proxy agent using our implementation
  */
 export function getHttpProxyAgent() {
 	try {
-		// Try to use n8n's internal getHttpProxyAgent
-		const { getHttpProxyAgent } = require('@utils/httpProxyAgent');
-		return getHttpProxyAgent();
+		return getHttpProxyAgentImpl();
 	} catch (error) {
-		// Fallback: return undefined (no proxy)
+		console.warn('Failed to get HTTP proxy agent:', error);
 		return undefined;
 	}
 }
 
 /**
- * Gets connection hint notice field using n8n's internal utilities when available
+ * Gets connection hint notice field using our implementation
  */
 export function getConnectionHintNoticeField(connectionTypes: any[]) {
 	try {
-		// Try to use n8n's internal getConnectionHintNoticeField
-		const { getConnectionHintNoticeField } = require('@utils/sharedFields');
-		return getConnectionHintNoticeField(connectionTypes);
+		return getConnectionHintNoticeFieldImpl(connectionTypes);
 	} catch (error) {
-		// Fallback: return null (no hint field)
+		console.warn('Failed to get connection hint notice field:', error);
 		return null;
 	}
 }
