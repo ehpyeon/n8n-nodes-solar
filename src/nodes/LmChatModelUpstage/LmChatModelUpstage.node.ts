@@ -10,7 +10,7 @@ import {
 	NodeConnectionType,
 } from 'n8n-workflow';
 
-import { getTracingConfig, createN8nLlmFailedAttemptHandler } from '../../utils/tracing';
+import { createN8nLlmTracing, createN8nLlmFailedAttemptHandler } from '../../utils/tracing';
 
 export class LmChatModelUpstage implements INodeType {
 	description: INodeTypeDescription = {
@@ -413,23 +413,11 @@ export class LmChatModelUpstage implements INodeType {
 			};
 		};
 
-		// Get proper tracing configuration for n8n
-		const tracingConfig = getTracingConfig(this, {
-			additionalMetadata: {
-				model: modelName,
-				maxTokens: options.maxTokens,
-				temperature: options.temperature,
-				streaming: options.streaming || false,
-			},
-			tokensUsageParser: upstageTokensParser,
-		});
-
 		const model = new ChatOpenAI({
 			apiKey: credentials.apiKey as string,
 			model: modelName, // Use 'model' instead of 'modelName' for better API compatibility
 			configuration,
-			callbacks: tracingConfig.callbacks,
-			metadata: tracingConfig.metadata,
+			callbacks: [createN8nLlmTracing(this, { tokensUsageParser: upstageTokensParser })],
 			onFailedAttempt: createN8nLlmFailedAttemptHandler(this),
 			maxTokens: options.maxTokens,
 			temperature: options.temperature,
