@@ -12,7 +12,7 @@ export class LmChatUpstage implements INodeType {
 		displayName: 'Upstage Solar LLM',
 		name: 'lmChatUpstage',
 		icon: 'file:upstage_v2.svg',
-		group: ['transform', '@n8n/n8n-nodes-langchain'],
+		group: ['transform'],
 		version: 1,
 		description: 'Use Upstage Solar models for chat completions',
 		defaults: {
