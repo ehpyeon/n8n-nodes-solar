@@ -6,8 +6,8 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
 
-import { logWrapper } from '@utils/logWrapper';
-import { getConnectionHintNoticeField } from '@utils/sharedFields';
+import { logWrapper } from '../../utils/logWrapper';
+import { getConnectionHintNoticeField } from '../../utils/sharedFields';
 
 export class EmbeddingsUpstageModel implements INodeType {
 	description: INodeTypeDescription = {

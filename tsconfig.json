@@ -16,11 +16,7 @@
     "emitDecoratorMetadata": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "typeRoots": ["node_modules/@types"],
-    "baseUrl": "./src",
-    "paths": {
-      "@utils/*": ["utils/*"]
-    }
+    "typeRoots": ["node_modules/@types"]
   },
   "include": [
     "src/**/*"
